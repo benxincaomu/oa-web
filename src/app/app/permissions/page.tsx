@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import axios from 'axios';
 import service from '@/commons/base/service';
+import { title } from 'process';
 interface Permission {
     id: number;
     name: string;
@@ -24,6 +25,7 @@ const Permissions = () => {
     typeMap.set(2, '页面菜单');
     typeMap.set(3, '请求链接');
     typeMap.set(4, '页面控制');
+    const [pageSize, setPageSize] = useState(20);
     const columns = [
         {
             title: '权限名称',
@@ -38,17 +40,22 @@ const Permissions = () => {
                 return <Space size="middle">{typeMap.get(record.type)}</Space>;
             },
         },
-        {
+        /* {
             title: '权限描述',
             dataIndex: 'description',
             key: 'description',
-        },
+        }, */
         {
             title: "权限值",
             dataIndex: 'value',
             key: 'value',
         },
         {
+            title: '上级权限',
+            dataIndex: 'parentName',
+            key: 'parentName',
+        },
+        /* {
             title: '操作',
             dataIndex: 'id',
             render: (_: any, record: any) => (
@@ -58,22 +65,22 @@ const Permissions = () => {
                     }}>编辑</a>
                 </Space>
             )
-        }
+        } */
     ];
     const [permissions, setPermissions] = useState<Permission[]>([]);
     const loadPermissions = async (currPage: number, pageSize: number) => {
-        await axios.get("/permission/list", {
+        await service.get("/permission/list", {
             headers: {
             },
         }).then((res) => {
             // console.log("获取权限数据成功:", res.data);
-            setPermissions(res.data.data.content);
+            setPermissions(res.data.content);
         });
     };
 
     useEffect(() => {
         setTimeout(() => {
-            loadPermissions(0,0);
+            loadPermissions(0, pageSize);
         }, 300);
     }, []);
 
@@ -86,11 +93,11 @@ const Permissions = () => {
         service.post("/permission", values, {
             headers: {
                 "Content-Type": "application/json",
-                
+
             },
-        }).then((res) => { 
+        }).then((res) => {
             messageApi.info(res.data);
-            loadPermissions(0,0);
+            loadPermissions(0, pageSize);
             setAddOpen(false);
             addForm.resetFields();
         });
@@ -114,7 +121,7 @@ const Permissions = () => {
         }
         service
             .get(`/permission/permissionsByType?type=${typeTmp}`, {
-                
+
             })
             .then((response) => {
                 setParentPermissions(response.data);
@@ -123,40 +130,47 @@ const Permissions = () => {
 
     return (
         <div>
+            {contextHolder}
             <head>
                 <title>权限管理</title>
             </head>
-            <Form form={searchForm} layout="inline" onFinish={(values) => loadPermissions(0,0)}>
-                <Form.Item label="权限名称" name="name">
-                    <Input placeholder="请输入权限名称" />
-                </Form.Item>
-                <Form.Item label="权限类型" name="type" >
-                    <Select placeholder="请选择权限类型">
-                        <Select.Option value={1}>目录菜单</Select.Option>
-                        <Select.Option value={2}>页面菜单</Select.Option>
-                        <Select.Option value={3}>请求链接</Select.Option>
-                        <Select.Option value={4}>页面控制</Select.Option>
-                    </Select>
-                </Form.Item>
+            <div>
 
-                <Form.Item>
+                <Form form={searchForm} layout="inline" onFinish={(values) => loadPermissions(0, 0)}>
+                    <Form.Item label="权限名称" name="name">
+                        <Input placeholder="请输入权限名称" />
+                    </Form.Item>
+                    <Form.Item label="权限类型" name="type" >
+                        <Select placeholder="请选择权限类型">
+                            <Select.Option value={1}>目录菜单</Select.Option>
+                            <Select.Option value={2}>页面菜单</Select.Option>
+                            <Select.Option value={3}>请求链接</Select.Option>
+                            <Select.Option value={4}>页面控制</Select.Option>
+                        </Select>
+                    </Form.Item>
 
-                    <Button type='primary' htmlType='submit'>查询</Button>
-                </Form.Item>
-                <Form.Item>
+                    <Form.Item>
 
-                    <Button type='primary' onClick={() => {
-                        setAddOpen(true);
-                    }}>添加权限</Button>
-                </Form.Item>
-            </Form>
-            <Table columns={columns} dataSource={permissions} rowKey={(record) => record.id} bordered = {true} pagination={{defaultCurrent: 1, pageSize: 20,onChange(page, pageSize) {
-                loadPermissions(page, pageSize);
-            },}}/>
+                        <Button type='primary' htmlType='submit'>查询</Button>
+                    </Form.Item>
+                    {/* <Form.Item>
+                        <Button type='primary' onClick={() => {
+                            setAddOpen(true);
+                        }}>添加权限</Button>
+                    </Form.Item> */}
+                </Form>
+            </div>
+            <br />
+
+            <Table columns={columns} dataSource={permissions} rowKey={(record) => record.id} bordered={true} pagination={{
+                defaultCurrent: 1, pageSize: pageSize, onChange(page, pageSize) {
+                    loadPermissions(page, pageSize);
+                },
+            }} />
             <Modal title="添加权限" open={addOpen} onCancel={() => {
                 setAddOpen(false);
                 addForm.resetFields();
-            }}  footer={null} >
+            }} footer={null} >
                 <Form form={addForm} onFinish={values => handleAddPermission(values)} layout='horizontal' labelCol={{ span: 6 }} wrapperCol={{ span: 16 }} >
                     <Form.Item label="权限名称" name="name" rules={[{ required: true }]}>
                         <Input placeholder="请输入权限名称" />

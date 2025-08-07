@@ -79,7 +79,7 @@ const SideMenu = () => {
     const [openKeys, setOpenKeys] = useState<string[]>([]);
     useEffect(() => {
         setTimeout(() => {
-            service.get("/user/getMyMenus").then((res) => {
+            service.get("/login/getMyMenus").then((res) => {
                 fillMenuItems(res.data as MenuItem[])
                 setMenuItems(res.data as MenuItem[]);
                 // console.log("res.data", res.data);

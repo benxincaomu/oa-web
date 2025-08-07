@@ -39,7 +39,7 @@ const saveToken = (token: string) => {
 const handleLogin = (values: any) => {
     values["remember"] = true;
     axios
-        .post("/user/login", values)
+        .post("/login/login", values)
         .then((response) => {
             // console.log("登录成功:", response.data);
             if (response.data.code === 200) {
@@ -61,7 +61,7 @@ const handleLogin = (values: any) => {
     
 };
 const handleLogout = () => {
-    axios.post("/user/logout").then((response) => {
+    axios.post("/login/logout").then((response) => {
         message.success("登出成功");
         const cookies = new Cookies();
         cookies.remove('token', { path: '/' });
