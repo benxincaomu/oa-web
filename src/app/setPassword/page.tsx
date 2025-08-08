@@ -3,7 +3,6 @@ import { Button, Col, Form, Input, Row, Typography, message } from 'antd';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import service from '@/commons/base/service';
-import axios from 'axios';
 interface ResetPasswordProps {
   resetPasswordId: string;
 }
@@ -22,7 +21,7 @@ export default function ResetPassword() {
       messageApi.error("密码不一致");
       return;
     }
-    axios.post("/user/setPassword", { id: query.get('id'), ...values }).then(res => {
+    service.post("/user/setPassword", { id: query.get('id'), ...values }).then(res => {
       if (res.data.code == 200) {
         messageApi.success("密码修改成功");
         setTimeout(() => {

@@ -1,8 +1,7 @@
-"use client"; 
+"use client";
 
 import { Button, Form, Input, message, Modal, Space, Table, Popconfirm, Select, TreeSelect } from "antd";
 import { useEffect, useState } from "react";
-import axios from "axios";
 import service from "@/commons/base/service";
 
 interface User {
@@ -75,7 +74,7 @@ const UserManager = () => {
     };
 
     const handleDelete = (id: number) => {
-        axios.delete(`/user/${id}`, {
+        service.delete(`/user/${id}`, {
             headers: {
             },
         }).then(() => {

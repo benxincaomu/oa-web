@@ -1,18 +1,22 @@
 {
-  "name": "backend-web",
+  "name": "oa-web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "PORT=4000 next dev",
     "build": "next build",
     "start": "PORT=5000 next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "dependencies": {
     "@ant-design/icons": "^6.0.0",
     "@ant-design/nextjs-registry": "^1.1.0",
     "@ant-design/v5-patch-for-react-19": "^1.0.3",
     "@bpmn-io/properties-panel": "^3.30.2",
+    "@opennextjs/cloudflare": "^1.6.5",
     "antd": "^5.26.6",
     "axios": "^1.10.0",
     "bpmn-js": "18.6.2",
@@ -36,6 +40,7 @@
     "eslint": "^9",
     "eslint-config-next": "15.4.5",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "^4.28.1"
   }
 }

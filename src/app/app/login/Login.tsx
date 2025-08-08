@@ -1,7 +1,6 @@
 "use client"
 import { Button, Form, Input, Modal, message, Space } from "antd";
 import { useEffect, useState } from "react";
-import axios from "axios";
 import service from "@/commons/base/service";
 import Cookies from 'universal-cookie';
 function Login() {
@@ -38,7 +37,7 @@ const saveToken = (token: string) => {
 
 const handleLogin = (values: any) => {
     values["remember"] = true;
-    axios
+    service
         .post("/login/login", values)
         .then((response) => {
             // console.log("登录成功:", response.data);
@@ -61,7 +60,7 @@ const handleLogin = (values: any) => {
     
 };
 const handleLogout = () => {
-    axios.post("/login/logout").then((response) => {
+    service.post("/login/logout").then((response) => {
         message.success("登出成功");
         const cookies = new Cookies();
         cookies.remove('token', { path: '/' });

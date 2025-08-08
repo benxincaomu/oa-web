@@ -20,6 +20,7 @@ interface CustomAxiosInstance {
 }
 
 const service = axios.create({
+    baseURL:"/server",
     timeout: 20000, // 超时时间
     headers: {
         'Content-Type': 'application/json',

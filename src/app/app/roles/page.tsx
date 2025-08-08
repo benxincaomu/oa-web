@@ -1,7 +1,6 @@
 "use client"
 import { Form, Input, Button, TreeSelect, Space, Table, Modal, message, Tree,ConfigProvider } from 'antd';
 import React, { use, useEffect, useState } from 'react';
-import axios from 'axios';
 import type { AppProps } from 'next/app';
 import service from '@/commons/base/service';
 
@@ -76,7 +75,7 @@ const RoleManager = () => {
     ];
     const [roles, setRoles] = useState<Role[]>([]);
     const loadRoles = (values: any) => {
-        axios.get('/role/list', {
+        service.get('/role/list', {
             params: {
                 ...values
             },
@@ -84,8 +83,8 @@ const RoleManager = () => {
             },
         }).then((res) => {
             // console.log("获取角色数据成功:", res.data);
-            if (res.data.code === 200) {
-                setRoles(res.data.data.content);
+            if (res.code === 200) {
+                setRoles(res.data.content);
             }
         });
     };
@@ -100,11 +99,11 @@ const RoleManager = () => {
     // 添加角色
     const [addOpen, setAddOpen] = useState(false);
     const handleAddRole = async (values: any) => {
-        await axios.post("/role", values, {
+        await service.post("/role", values, {
             headers: {
             },
         }).then((res) => {
-            if (res.data.code === 200) {
+            if (res.code === 200) {
                 messageApi.success("添加角色成功");
                 setAddOpen(false);
                 loadRoles({});
@@ -125,12 +124,12 @@ const RoleManager = () => {
     }, [ownedPermissionIds]);
 
     const loadPermissions = async () => {
-        await axios.get("/permission/getMenuTree", {
+        await service.get("/permission/getMenuTree", {
             headers: {
             },
         }).then((res) => {
             console.log("获取权限数据成功:", res.data);
-            if (res.data.code === 200) {
+            if (res.code === 200) {
                 // const pp = fillPermissionTree(res.data.data as PermissionNode[]);
                 // console.log("pp", pp);
                 setPermissions(fillPermissionTree(res.data.data as PermissionNode[]));
@@ -138,15 +137,15 @@ const RoleManager = () => {
         });
     };
     const loadPermissionsByRoleId = async (id: number) => {
-        await axios.get(`/role/permissionsByRoleId?roleId=${id}`, {
+        await service.get(`/role/permissionsByRoleId?roleId=${id}`, {
             headers: {
             },
         }).then((res) => {
             // console.log("获取权限数据成功:", res.data);
 
-            if (res.data.code === 200) {
+            if (res.code === 200) {
                 authForm.resetFields();
-                const permissions: PermissionNode[] = res.data.data;
+                const permissions: PermissionNode[] = res.data;
 
                 setOwnedPermissionIds(getPermissionIdsByPermissions(permissions));
                 setAuthOpen(true);
