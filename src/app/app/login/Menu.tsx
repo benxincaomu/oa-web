@@ -93,7 +93,7 @@ const SideMenu = () => {
                 }
             });
         }, 300);
-    }, []);
+    }, [pathName]);
 
     const onClickMenu = ({ item, key, keyPath, domEvent }:any) => {
         // console.log("item:", item);

@@ -22,6 +22,7 @@
     "camunda-bpmn-moddle": "^7.0.1",
     "htm": "^3.1.1",
     "next": "15.4.5",
+    "qs": "^6.14.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "universal-cookie": "^8.0.1"
