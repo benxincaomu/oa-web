@@ -81,20 +81,20 @@ export default function MyStart({
   const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
 
-  const loadMystart = useCallback(() => {
+  const loadMystart = useCallback((currPage: number, pageSize: number) => {
     service.get(`/flowForm/${workbenchId}/listMyStart?currPage=${currPage}&pageSize=${pageSize}`).then(res => {
       setTableData(res.data.content);
       setTotal(res.data.page.totalElements);
     });
-  }, [currPage, pageSize, workbenchId]);
+  }, [ workbenchId]);
 
 
   useEffect(() => {
     if (columns && columns.length > 0) {
-      loadMystart();
+      loadMystart(0,pageSize);
 
     }
-  }, [columns, loadMystart]);
+  }, [columns, loadMystart, pageSize]);
 
   const [addOpen, setAddOpen] = useState(false);
 
@@ -113,14 +113,14 @@ export default function MyStart({
       <Modal title={modalTitle} open={addOpen} onCancel={() => setAddOpen(false)} footer={null} width={800} destroyOnHidden={true} >
         {disableEdit ? <FormDetail workbenchId={workbenchId} formId={flowFormId} /> : <FormNew formId={flowFormId} workbenchPublish={workbenchPublish} onCancel={() => setAddOpen(false)} onSubmit={() => {
           setAddOpen(false);
-          loadMystart();
+          loadMystart(0,pageSize);
         }} disabled={disableEdit} />}
 
       </Modal>
       <Table columns={columns} dataSource={tableData} pagination={{
         pageSize: pageSize, current: currPage, total: total, onChange(page, pageSize) {
-          setCurrPage(page);
           setPageSize(pageSize);
+          loadMystart(page, pageSize);
         },
       }} bordered = {true} rowKey={(record) => record.id} rowClassName={(record, index) => index % 2 === 0 ? 'row-class-0' : 'row-class-1'} rowHoverable = {true} />
     </div>

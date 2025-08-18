@@ -67,6 +67,7 @@ const Permissions = () => {
         } */
     ];
     const [permissions, setPermissions] = useState<Permission[]>([]);
+    const [total, setTotal] = useState(0);
     const loadPermissions = async (currPage: number, pageSize: number) => {
         await service.get("/permission/list", {
             headers: {
@@ -74,6 +75,7 @@ const Permissions = () => {
         }).then((res) => {
             // console.log("获取权限数据成功:", res.data);
             setPermissions(res.data.content);
+            setTotal(res.data.page.totalElements);
         });
     };
 
@@ -162,7 +164,8 @@ const Permissions = () => {
             <br />
 
             <Table columns={columns} dataSource={permissions} rowKey={(record) => record.id} bordered={true} pagination={{
-                defaultCurrent: 1, pageSize: pageSize, onChange(page, pageSize) {
+                defaultCurrent: 1, pageSize: pageSize, total: total, onChange(page, pageSize) {
+                    setPageSize(pageSize);
                     loadPermissions(page, pageSize);
                 },
             }} />

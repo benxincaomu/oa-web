@@ -12,23 +12,24 @@ interface Workbench {
 const Workbench = () => {
 
     const [messageApi, contextHolder] = message.useMessage();
-    const [seachForm] = Form.useForm();
+    const [searchForm] = Form.useForm();
     const [addForm] = Form.useForm();
-    const [currPage, setCurrPage] = useState(1);
     const [pageSize, setPageSize] = useState(20);
-    const loadWorkbench = useCallback((values: any) => {
-        const name = values.name ?? '';
+    const [total, setTotal] = useState(0);
+    const loadWorkbench = useCallback((currPage: number, pageSize: number) => {
+        const name = searchForm.getFieldValue("name");;
         const url = name
             ? `/workbench/list?currPage=${currPage}&pageSize=${pageSize}&name=${encodeURIComponent(name)}`
             : `/workbench/list?currPage=${currPage}&pageSize=${pageSize}`;
         service.get(url).then((res) => {
             setWorkbenches(res.data.content);
+            setTotal(res.data.page.totalElements);
         })
-    }, []);
+    }, [searchForm]);
     useEffect(() => {
         document.title = '工作台管理';
-        loadWorkbench({});
-    }, [currPage, loadWorkbench]);
+        loadWorkbench(0, pageSize);
+    }, [loadWorkbench, pageSize]);
 
     const [addOpen, setAddOpen] = useState(false);
 
@@ -53,7 +54,7 @@ const Workbench = () => {
             render: (text: any, record: any) => (
                 <Space size="middle">
                     <a>编辑</a>
-                    <a>删除</a>     
+                    <a>删除</a>
                     <a target="_blank" href={`/app/workbenches/design?wid=${record.id}`}>设计</a>
                 </Space>
             )
@@ -64,7 +65,7 @@ const Workbench = () => {
         <div>
             {contextHolder}
             <Typography.Title level={4} >设计工作台</Typography.Title>
-            <Form form={seachForm} onFinish={(values) => { loadWorkbench(values) }} layout="inline">
+            <Form form={searchForm} onFinish={(values) => { loadWorkbench(0, pageSize) }} layout="inline">
                 <Form.Item label="名称" name="name"><Input placeholder="请输入名称" /></Form.Item>
                 <Form.Item>
                     <Button type="primary" htmlType="submit">查询</Button>
@@ -97,17 +98,17 @@ const Workbench = () => {
                     </Form.Item>
                 </Form>
             </Modal>
-            <Divider dashed/>
+            <Divider dashed />
             <Table columns={columns} dataSource={workbenches} rowKey={"id"} pagination={{
                 defaultCurrent: 1,
                 pageSize: pageSize,
+                total: total,
                 onChange(page, pageSize) {
-                    setCurrPage(page);
                     setPageSize(pageSize);
-
+                    loadWorkbench(page, pageSize);
                 },
-                
-            }} bordered/>
+
+            }} bordered />
         </div>
     );
 };

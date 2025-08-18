@@ -82,33 +82,33 @@ export default function MyTodo({
   const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
   const [starterId, setStarterId] = useState<number>(0);
-  const loadMyTodo = useCallback(() => {
-    
-      service.get(`/flowForm/${workbenchId}/listMyTodo?currPage=${currPage}&pageSize=${pageSize}&starterId=${starterId > 0 ? starterId : ""}`).then(res => {
-        setTableData(res.data.content);
-        setTotal(res.data.page.totalElements);
-      });
-    
-  }, [currPage, pageSize,starterId, workbenchId]);
+  const loadMyTodo = useCallback((currPage: number, pageSize: number) => {
 
-  
+    service.get(`/flowForm/${workbenchId}/listMyTodo?currPage=${currPage}&pageSize=${pageSize}&starterId=${starterId > 0 ? starterId : ""}`).then(res => {
+      setTableData(res.data.content);
+      setTotal(res.data.page.totalElements);
+    });
+
+  }, [starterId, workbenchId]);
+
+
 
   useEffect(() => {
     if (columns && columns.length > 0) {
-      loadMyTodo();
+      loadMyTodo(0, pageSize);
 
     }
-  }, [columns, loadMyTodo, starterId]);
+  }, [columns, loadMyTodo, pageSize, starterId]);
 
   const [addOpen, setAddOpen] = useState(false);
   const [userSelectForm] = Form.useForm();
-  
+
 
   return (
     <div>
       <Row gutter={16}>
         <Col span={8}>
-          <DeptUserSelect form={userSelectForm} formItemSpan={12} userSelectLabel="发起人"/>
+          <DeptUserSelect form={userSelectForm} formItemSpan={12} userSelectLabel="发起人" />
         </Col>
         <Col span={4}>
           <Button type="primary" onClick={() => {
@@ -119,14 +119,14 @@ export default function MyTodo({
       <Modal title={modalTitle} open={addOpen} onCancel={() => setAddOpen(false)} footer={null} width={800} destroyOnHidden={true} >
         <FormDetail workbenchId={workbenchId} formId={flowFormId} onCancel={() => setAddOpen(false)} onSubmit={() => {
           setAddOpen(false);
-          loadMyTodo();
+          loadMyTodo(0, pageSize);
         }} />
 
       </Modal>
       <Table columns={columns} dataSource={tableData} pagination={{
         pageSize: pageSize, current: currPage, total: total, onChange(page, pageSize) {
-          setCurrPage(page);
           setPageSize(pageSize);
+          loadMyTodo(page, pageSize);
         },
       }} bordered={true} rowKey={(record) => record.id} rowClassName={(record, index) => index % 2 === 0 ? 'row-class-0' : 'row-class-1'} rowHoverable={true} />
     </div>

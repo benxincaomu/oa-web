@@ -1,7 +1,7 @@
 "use client";
 
 import { Button, Form, Input, message, Modal, Space, Table, Popconfirm, Select, TreeSelect } from "antd";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import service from "@/commons/base/service";
 
 interface User {
@@ -24,9 +24,9 @@ const UserManager = () => {
     const [searchUserForm] = Form.useForm();
 
     const [users, setUsers] = useState<User[]>([]);
-    const [currPage, setCurrPage] = useState(1);
     const [pageSize, setPageSize] = useState(20);
-    const loadUsers = () => {
+    const [total, setTotal] = useState(0);
+    const loadUsers = useCallback((currPage: number, pageSize: number) => {
         // 模拟从服务器获取用户数据
         const userName = searchUserForm.getFieldValue("userNameS");
         const name = searchUserForm.getFieldValue("nameS");
@@ -41,19 +41,20 @@ const UserManager = () => {
         })
             .then((response) => {
                 setUsers(response.data.content); // 假设后端返回 { users: [...] }
+                setTotal(response.data.page.totalElements);
             })
             .catch((error) => {
                 console.error("Error loading users:", error);
                 messageApi.error("加载用户失败");
             });
-    };
+    }, [messageApi, searchUserForm]);
 
     useEffect(() => {
         document.title = "用户管理";
         setTimeout(() => {
-            loadUsers();
+            loadUsers(0, pageSize);
         }, 500);
-    }, []);
+    }, [loadUsers, pageSize]);
     /**
      * 添加用户
      * @param values the form values
@@ -66,7 +67,7 @@ const UserManager = () => {
                 messageApi.success("添加用户成功");
                 addUserFrom.resetFields();
                 setIsModalOpen(false);
-                loadUsers();
+                loadUsers(0, pageSize);
             } else {
                 messageApi.error(res.data);
             }
@@ -79,7 +80,7 @@ const UserManager = () => {
             },
         }).then(() => {
             messageApi.success("用户删除成功");
-            loadUsers();
+            loadUsers(0, pageSize);
         });
     };
 
@@ -223,7 +224,7 @@ const UserManager = () => {
                     form={searchUserForm}
                     layout="inline"
                     onFinish={() => {
-                        loadUsers();
+                        loadUsers(0, pageSize);
                     }}
                 >
                     <Form.Item name="userNameS">
@@ -247,15 +248,16 @@ const UserManager = () => {
             <Table
                 dataSource={users}
                 columns={columns}
-                pagination={{ pageSize: 20 }}
+                pagination={{
+                    pageSize: 20, total: total, onChange: (page, pageSize) => {
+                        setPageSize(pageSize || 20);
+                        loadUsers(page || 1, pageSize);
+                    }
+                }}
                 rowKey={(record) => record.id}
                 bordered={true}
                 rowClassName={(record, index) => index % 2 === 0 ? 'row-class-0' : 'row-class-1'}
-                onChange={(pagination, filters, sorter, extra) => {
-                    setCurrPage(pagination.current || 1);
-                    setPageSize(pagination.pageSize || 20);
-                    loadUsers();
-                }}
+
             />
 
             <Modal

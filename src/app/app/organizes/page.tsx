@@ -1,18 +1,12 @@
 
 "use client"
 import service from "@/commons/base/service";
-import { use, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useState } from "react";
 import { Table, Form, Input, Button, Modal, Select, message, Space } from "antd";
 import formToUrlParams from "@/commons/base/urlSearchParam";
 const Organize = () => {
     const [messageApi, contextHolder] = message.useMessage();
-    const [pageSize, setPageSize] = useState(20);
-    useEffect(() => {
-        document.title = "组织管理";
-        setTimeout(() => {
-            loadOrganizes(0, pageSize);
-        }, 500);
-    }, [pageSize]);
+
 
 
 
@@ -31,7 +25,7 @@ const Organize = () => {
         if (allDepts.length == 0) {
             service.get("/organize/listAll").then((res) => {
                 setAllDepts(res.data as any[]);
-                
+
                 addForm.resetFields();
             });
         }
@@ -89,14 +83,24 @@ const Organize = () => {
         }
     ];
     const [depts, setDepts] = useState<any[]>([]);
+    const [pageSize, setPageSize] = useState(20);
+    const [total, setTotal] = useState(0);
+
     const [searchFrom] = Form.useForm();
-    const loadOrganizes = (currPage: number, pageSize: number) => {
+    const loadOrganizes = useCallback((currPage: number, pageSize: number) => {
 
         service.get(`/organize/list?currPage=${currPage}&pageSize=${pageSize}&${formToUrlParams(searchFrom.getFieldsValue())}`).then((res) => {
             setDepts(res.data.content);
-        });
-    };
+            setTotal(res.data.page.totalElements);
 
+        });
+    }, [searchFrom]);
+    useEffect(() => {
+        document.title = "组织管理";
+        setTimeout(() => {
+            loadOrganizes(0, pageSize);
+        }, 500);
+    }, [loadOrganizes, pageSize]);
 
 
     return (
@@ -125,7 +129,7 @@ const Organize = () => {
             </div>
             <br />
             <Table columns={columns} dataSource={depts} rowKey={(record) => record.id} pagination={{
-                defaultCurrent: 1, pageSize: pageSize, onChange(page, pageSize) {
+                defaultCurrent: 1, pageSize: pageSize, total: total, onChange(page, pageSize) {
                     setPageSize(pageSize);
                     loadOrganizes(page, pageSize);
                 },
@@ -157,7 +161,7 @@ const Organize = () => {
                     </Form.Item>
                 </Form>
             </Modal>
-            <Modal title='部门负责人' open={deptManagerOpen} footer={null} onCancel={() => {setDeptManagerOpen(false)}}>
+            <Modal title='部门负责人' open={deptManagerOpen} footer={null} onCancel={() => { setDeptManagerOpen(false) }}>
                 <Form form={assignLeaderForm} onFinish={(values) => assignDeptLeader(values)}>
                     <Form.Item name="deptId" hidden>
                         <Input />

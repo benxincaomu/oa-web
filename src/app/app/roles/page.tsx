@@ -1,6 +1,6 @@
 "use client"
 import { Form, Input, Button, TreeSelect, Space, Table, Modal, message, Tree,ConfigProvider } from 'antd';
-import React, { use, useEffect, useState } from 'react';
+import React, { use, useCallback, useEffect, useState } from 'react';
 import type { AppProps } from 'next/app';
 import service from '@/commons/base/service';
 
@@ -74,10 +74,15 @@ const RoleManager = () => {
         },
     ];
     const [roles, setRoles] = useState<Role[]>([]);
-    const loadRoles = (values: any) => {
+    const [searchForm] = Form.useForm();
+    const [pageSize, setPageSize] = useState(20);
+    const [total, setTotal] = useState(0);
+    const loadRoles = useCallback((currPage: number, pageSize: number) => {
         service.get('/role/list', {
             params: {
-                ...values
+                ...searchForm.getFieldsValue(),
+                currPage: currPage,
+                pageSize: pageSize,
             },
             headers: {
             },
@@ -85,16 +90,17 @@ const RoleManager = () => {
             // console.log("获取角色数据成功:", res.data);
             if (res.code === 200) {
                 setRoles(res.data.content);
+                setTotal(res.data.page.totalElements);
             }
         });
-    };
+    },[searchForm]);
     useEffect(() => {
         document.title = "角色管理";
         setTimeout(() => {
-            loadRoles({});
+            loadRoles(0,pageSize);
             loadPermissions();
         }, 1000);
-    }, []);
+    }, [loadRoles, pageSize]);
 
     // 添加角色
     const [addOpen, setAddOpen] = useState(false);
@@ -106,7 +112,7 @@ const RoleManager = () => {
             if (res.code === 200) {
                 messageApi.success("添加角色成功");
                 setAddOpen(false);
-                loadRoles({});
+                loadRoles(0, pageSize);
             } else {
                 messageApi.error("添加角色失败");
             }
@@ -187,7 +193,7 @@ const RoleManager = () => {
     return (
         <div>
             {contextHolder}
-            <Form layout="inline" onFinish={(values) => loadRoles(values)}>
+            <Form layout="inline" onFinish={(values) => loadRoles(0,pageSize)}>
                 <Form.Item label="角色名称" name="name">
                     <Input placeholder="请输入角色名称" />
                 </Form.Item>
@@ -207,6 +213,15 @@ const RoleManager = () => {
                 dataSource={roles}
                 rowKey="id"
                 bordered={true}
+                pagination={{
+                    pageSize: pageSize,
+                    defaultCurrent: 1,
+                    total: total,
+                    onChange(page, pageSize) {
+                        setPageSize(pageSize);
+                        loadRoles(page, pageSize);
+                    },
+                }}
                 rowHoverable = {false}
                 rowClassName={(record, index) => index % 2 === 0 ? 'row-class-0' : 'row-class-1'}
             />

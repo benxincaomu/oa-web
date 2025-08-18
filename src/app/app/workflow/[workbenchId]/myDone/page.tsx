@@ -82,20 +82,20 @@ export default function MyTodo({
   const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
   const [starterId, setStarterId] = useState<number>(0);
-  const loadMyDone = useCallback(() => {
+  const loadMyDone = useCallback((currPage: number, pageSize: number) => {
     service.get(`/flowForm/${workbenchId}/listMyDone?currPage=${currPage}&pageSize=${pageSize}&starterId=${starterId > 0 ? starterId : ""}`).then(res => {
       setTableData(res.data.content);
       setTotal(res.data.page.totalElements);
     });
-  }, [currPage, pageSize, starterId, workbenchId]);
+  }, [starterId, workbenchId]);
 
 
   useEffect(() => {
     if (columns && columns.length > 0) {
-      loadMyDone();
+      loadMyDone(0,pageSize);
 
     }
-  }, [columns, loadMyDone]);
+  }, [columns, loadMyDone, pageSize]);
 
   const [addOpen, setAddOpen] = useState(false);
 
@@ -119,14 +119,14 @@ export default function MyTodo({
       <Modal title={modalTitle} open={addOpen} onCancel={() => setAddOpen(false)} footer={null} width={800} destroyOnHidden={true} >
         <FormDetail workbenchId={workbenchId} formId={flowFormId} onCancel={() => setAddOpen(false)} onSubmit={() => {
           setAddOpen(false);
-          loadMyDone();
+          loadMyDone(0,pageSize);
         }} />
 
       </Modal>
       <Table columns={columns} dataSource={tableData} pagination={{
         pageSize: pageSize, current: currPage, total: total, onChange(page, pageSize) {
-          setCurrPage(page);
           setPageSize(pageSize);
+          loadMyDone(page, pageSize);
         },
       }} bordered={true} rowKey={(record) => record.id} rowClassName={(record, index) => index % 2 === 0 ? 'row-class-0' : 'row-class-1'} rowHoverable={true} />
     </div>
