@@ -1,7 +1,6 @@
 "use client"
 import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
 import { message } from 'antd';
-import Cookies from 'universal-cookie';
 
 // 定义统一的API响应格式
 export interface ApiResponse<T = any> {
@@ -22,6 +21,10 @@ interface CustomAxiosInstance {
 const service = axios.create({
     baseURL:"/server",
     timeout: 20000, // 超时时间
+    withCredentials: true,
+    withXSRFToken: true,
+    xsrfCookieName: 'XSRF-TOKEN',
+    xsrfHeaderName: 'X-XSRF-TOKEN',
     headers: {
         'Content-Type': 'application/json',
     },
@@ -29,11 +32,7 @@ const service = axios.create({
 
 // 请求拦截器
 service.interceptors.request.use(
-    (config) => {
-        const cookies = new Cookies();
-        const token = cookies.get('token');
-        return config;
-    },
+    (config) => config,
     (error) => {
         return Promise.reject(error);
     }
@@ -43,10 +42,10 @@ service.interceptors.request.use(
 service.interceptors.response.use(
     (response) => {
         const res = response.data;
+        if (!res || typeof res.code !== 'number') {
+            return res;
+        }
         if (res.code === 10002) {
-            const cookies = new Cookies();
-            cookies.remove('token',{path:'/'});
-            cookies.remove('name',{path:'/'});
             message.error(res.message);
         } else if (res.code === -1 && window.location.pathname !== '/init') {
             message.error(res.message || '项目未初始化');
@@ -56,13 +55,18 @@ service.interceptors.response.use(
             return new Promise(() => {});
         } else if (res.code !== 200) {
             message.error(res.message || '操作失败');
-            return new Promise(() => {});
+            return Promise.reject(new Error(res.message || '操作失败'));
         }
         return res;
     },
     (error) => {
-        message.error('网络请求失败', error);
-        return new Promise(() => {});
+        const status = error?.response?.status;
+        if (status === 403) {
+            message.error('当前账号没有执行此操作的权限');
+        } else if (status !== 401) {
+            message.error('网络请求失败');
+        }
+        return Promise.reject(error);
     }
 );
 

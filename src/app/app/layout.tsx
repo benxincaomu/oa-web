@@ -1,7 +1,7 @@
 "use client";
 import { Layout } from "antd";
 import React from "react";
-import Login from "@/app/app/login/Login";
+import Login from "@/app/app/login/KeycloakLogin";
 import SideMenu from "@/app/app/login/Menu";
 
 const { Header, Sider, Content, Footer } = Layout;
