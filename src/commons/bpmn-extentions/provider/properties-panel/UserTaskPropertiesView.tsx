@@ -133,7 +133,7 @@ export function AssignTaskView({ bpmnModelerRef, bpmnId }: ModelerProps) {
                     propertiesToUpdate['camunda:assignee'] = assigneeValue;
                     break;
                 case "starterLeader":
-                    propertiesToUpdate['camunda:assignee'] = "${starterLeader}";
+                    propertiesToUpdate['camunda:assignee'] = "${starterId}";
                     break;
                 case "assigneeDept":
                     propertiesToUpdate['camunda:candidateGroups'] = assigneeValue;

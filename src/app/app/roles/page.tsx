@@ -1,271 +1,169 @@
 "use client"
-import { Form, Input, Button, TreeSelect, Space, Table, Modal, message, Tree,ConfigProvider } from 'antd';
-import React, { use, useCallback, useEffect, useState } from 'react';
-import type { AppProps } from 'next/app';
+
+import { Button, Form, Input, message, Modal, Space, Table, Tooltip, Tree } from 'antd';
+import type { DataNode } from 'antd/es/tree';
+import { useCallback, useEffect, useState } from 'react';
 import service from '@/commons/base/service';
 
-interface Role {
-    id: number;
+interface KeycloakRole {
+    id: string;
     name: string;
-    description: string;
+    description?: string;
 }
 
-interface PermissionNode {
-    id: number;
-    name: string;
-    key: number;
-    title: string;
-    isLeaf: boolean;
-    type: number;
-    children: PermissionNode[];
+interface OaResource {
+    id: string;
+    key: string;
+    displayName: string;
+    type: string;
+    value?: string;
+    parentKey?: string;
+    workbenchKey?: string;
 }
-const fillPermissionTree = (permissions: PermissionNode[]) => {
-    if (permissions != null && permissions.length > 0) {
-        permissions.forEach(permission => {
-            permission.key = permission.id;
-            permission.title = permission.name;
-            permission.isLeaf = permission.type != 1;
 
-            fillPermissionTree(permission.children);
+const ADMIN_ROLE = 'oa-admin';
+
+const buildResourceTree = (resources: OaResource[]): DataNode[] => {
+    const menus = resources.filter(resource => resource.type === 'oa-menu');
+    const apis = resources.filter(resource => resource.type === 'oa-api');
+    const groups: DataNode[] = [];
+    if (menus.length > 0) {
+        groups.push({
+            key: 'group:menu',
+            title: '菜单权限',
+            children: menus.map(menu => ({ key: menu.key, title: menu.displayName || menu.key })),
         });
     }
-    return permissions;
+    if (apis.length > 0) {
+        groups.push({
+            key: 'group:api',
+            title: '接口权限',
+            children: apis.map(api => ({ key: api.key, title: api.displayName || api.key })),
+        });
+    }
+    return groups;
 };
 
-const getPermissionIdsByPermissions = (permissions: PermissionNode[]) => {
-    let permissionIds: number[] = [];
-    if (permissions != null && permissions.length > 0) {
-        for (let i = 0; i < permissions.length; i++) {
-            if (permissions[i].type != 1 && permissions[i].children.length == 0) {
-                permissionIds.push(permissions[i].id);
-            }
-            permissionIds = permissionIds.concat(getPermissionIdsByPermissions(permissions[i].children));
-        }
-    }
-    return permissionIds;
-};
+/**
+ * 角色管理：角色是 Keycloak 应用 client role；授权是 Keycloak 资源权限。
+ */
 const RoleManager = () => {
     const [messageApi, contextHolder] = message.useMessage();
-    const columns = [
+    const [roles, setRoles] = useState<KeycloakRole[]>([]);
+    const [resources, setResources] = useState<OaResource[]>([]);
+    const [addOpen, setAddOpen] = useState(false);
+    const [authOpen, setAuthOpen] = useState(false);
+    const [operatingRole, setOperatingRole] = useState<KeycloakRole | null>(null);
+    const [checkedKeys, setCheckedKeys] = useState<string[]>([]);
+    const [addForm] = Form.useForm();
 
-        {
-            title: '角色名称',
-            dataIndex: 'name',
-            key: 'name',
-        },
-        {
-            title: '角色描述',
-            dataIndex: 'description',
-            key: 'description',
-        },
+    const loadRoles = useCallback(() => {
+        service.get<KeycloakRole[]>('/identity/roles')
+            .then((res) => setRoles(res.data || []))
+            .catch(() => messageApi.error('加载角色失败'));
+    }, [messageApi]);
+
+    useEffect(() => {
+        document.title = '角色管理';
+        loadRoles();
+        service.get<OaResource[]>('/identity/resources')
+            .then((res) => setResources(res.data || []))
+            .catch(() => messageApi.error('加载权限资源失败'));
+    }, [loadRoles, messageApi]);
+
+    const submitRole = (values: any) => {
+        service.put('/identity/roles', { name: values.name, description: values.description })
+            .then(() => {
+                messageApi.success('角色已保存');
+                setAddOpen(false);
+                addForm.resetFields();
+                loadRoles();
+            })
+            .catch(() => messageApi.error('保存角色失败'));
+    };
+
+    const openAuth = (role: KeycloakRole) => {
+        setOperatingRole(role);
+        setCheckedKeys([]);
+        service.get<string[]>(`/identity/roles/${encodeURIComponent(role.name)}/resources`)
+            .then((res) => {
+                setCheckedKeys(res.data || []);
+                setAuthOpen(true);
+            })
+            .catch(() => messageApi.error('加载角色授权失败'));
+    };
+
+    const saveAuth = () => {
+        if (!operatingRole) {
+            return;
+        }
+        const resourceKeys = new Set(resources.map(resource => resource.key));
+        const selected = checkedKeys.filter(key => resourceKeys.has(key));
+        service.put(`/identity/roles/${encodeURIComponent(operatingRole.name)}/resources`, {
+            resourceKeys: selected,
+        }).then(() => {
+            messageApi.success('授权已保存');
+            setAuthOpen(false);
+        }).catch(() => messageApi.error('保存授权失败'));
+    };
+
+    const columns = [
+        { title: '角色名称', dataIndex: 'name', key: 'name' },
+        { title: '角色描述', dataIndex: 'description', key: 'description' },
         {
             title: '操作',
-            render: (_: any, record: any) => {
-                return <Space size="middle">
-                    <Button type="primary">编辑</Button>
-                    <Button type="primary" onClick={() => {
-                        loadPermissionsByRoleId(record.id)
-                        // setAuthOpen(true);
-                        setOperatingRoleId(record.id);
-                    }}>授权</Button>
-                    <Button type="primary" danger>删除</Button>
-                </Space>;
+            key: 'action',
+            render: (_: any, record: KeycloakRole) => {
+                const isAdmin = record.name === ADMIN_ROLE;
+                return (
+                    <Space size="middle">
+                        {isAdmin
+                            ? <Tooltip title="管理员角色的默认授权由系统维护">
+                                <Button type="primary" disabled>授权</Button>
+                            </Tooltip>
+                            : <Button type="primary" onClick={() => openAuth(record)}>授权</Button>}
+                    </Space>
+                );
             },
         },
     ];
-    const [roles, setRoles] = useState<Role[]>([]);
-    const [searchForm] = Form.useForm();
-    const [pageSize, setPageSize] = useState(20);
-    const [total, setTotal] = useState(0);
-    const loadRoles = useCallback((currPage: number, pageSize: number) => {
-        service.get('/role/list', {
-            params: {
-                ...searchForm.getFieldsValue(),
-                currPage: currPage,
-                pageSize: pageSize,
-            },
-            headers: {
-            },
-        }).then((res) => {
-            // console.log("获取角色数据成功:", res.data);
-            if (res.code === 200) {
-                setRoles(res.data.content);
-                setTotal(res.data.page.totalElements);
-            }
-        });
-    },[searchForm]);
-    useEffect(() => {
-        document.title = "角色管理";
-        setTimeout(() => {
-            loadRoles(0,pageSize);
-            loadPermissions();
-        }, 1000);
-    }, [loadRoles, pageSize]);
 
-    // 添加角色
-    const [addOpen, setAddOpen] = useState(false);
-    const handleAddRole = async (values: any) => {
-        await service.post("/role", values, {
-            headers: {
-            },
-        }).then((res) => {
-            if (res.code === 200) {
-                messageApi.success("添加角色成功");
-                setAddOpen(false);
-                loadRoles(0, pageSize);
-            } else {
-                messageApi.error("添加角色失败");
-            }
-        })
-    };
-    // 授权相关
-    const [authOpen, setAuthOpen] = useState(false);
-    const [permissions, setPermissions] = useState<PermissionNode[]>([]);
-    const [checkedIds, setCheckedIds] = useState<number[]>([]);
-    // 以获取的授权
-    const [ownedPermissionIds, setOwnedPermissionIds] = useState<number[]>([]);
-    const [operatingRoleId, setOperatingRoleId] = useState<number>(0);
-    useEffect(() => {
-        // console.log("ownedPermissionIds", ownedPermissionIds);
-    }, [ownedPermissionIds]);
-
-    const loadPermissions = async () => {
-        await service.get("/permission/getMenuTree", {
-            headers: {
-            },
-        }).then((res) => {
-            console.log("获取权限数据成功:", res.data);
-            if (res.code === 200) {
-                // const pp = fillPermissionTree(res.data.data as PermissionNode[]);
-                // console.log("pp", pp);
-                setPermissions(fillPermissionTree(res.data.data as PermissionNode[]));
-            }
-        });
-    };
-    const loadPermissionsByRoleId = async (id: number) => {
-        await service.get(`/role/permissionsByRoleId?roleId=${id}`, {
-            headers: {
-            },
-        }).then((res) => {
-            // console.log("获取权限数据成功:", res.data);
-
-            if (res.code === 200) {
-                authForm.resetFields();
-                const permissions: PermissionNode[] = res.data;
-
-                setOwnedPermissionIds(getPermissionIdsByPermissions(permissions));
-                setAuthOpen(true);
-            }
-        });
-    };
-    const saveAuth = async () => {
-        // messageApi.info("正在保存权限...");
-        // console.log("saveAuth",checkedIds.concat(halfCheckedIds));
-        service.post("/role/auth", {
-            roleId: operatingRoleId,
-            permissionIds: checkedIds.concat(halfCheckedIds)
-        }).then(res => {
-            if (res.code === 200) {
-                messageApi.info("授权成功");
-                setAuthOpen(false);
-            } else {
-                messageApi.error("授权失败");
-            }
-        });
-
-    };
-
-    const [halfCheckedIds, setHalfCheckedIds] = useState<number[]>([]);
-    const getHalfCheckedIds = () => {
-        const halfCheckedIds: number[] = [];
-
-        return halfCheckedIds;
-    };
-    const getHalfCheckedIdsDeep = (permissions: PermissionNode[]) => {
-        const halfCheckedIds: number[] = [];
-        for (let i = 0; i < permissions.length; i++) {
-
-        }
-        return halfCheckedIds;
-    };
-
-    const [authForm] = Form.useForm();
     return (
         <div>
             {contextHolder}
-            <Form layout="inline" onFinish={(values) => loadRoles(0,pageSize)}>
-                <Form.Item label="角色名称" name="name">
-                    <Input placeholder="请输入角色名称" />
-                </Form.Item>
-
-
+            <Form layout="inline">
                 <Form.Item>
-
-                    <Button type='primary' htmlType='submit'>查询</Button>
-                </Form.Item>
-                <Form.Item>
-
-                    <Button type='primary' onClick={(e) => { setAddOpen(true) }}>新增角色</Button>
+                    <Button type="primary" onClick={() => {
+                        addForm.resetFields();
+                        setAddOpen(true);
+                    }}>新增角色</Button>
                 </Form.Item>
             </Form>
-            <Table
-                columns={columns}
-                dataSource={roles}
-                rowKey="id"
-                bordered={true}
-                pagination={{
-                    pageSize: pageSize,
-                    defaultCurrent: 1,
-                    total: total,
-                    onChange(page, pageSize) {
-                        setPageSize(pageSize);
-                        loadRoles(page, pageSize);
-                    },
-                }}
-                rowHoverable = {false}
-                rowClassName={(record, index) => index % 2 === 0 ? 'row-class-0' : 'row-class-1'}
-            />
-            <Modal title="新增角色" open={addOpen} onCancel={() => { setAddOpen(false) }} footer={null} >
-                <Form onFinish={(values) => handleAddRole(values)}>
-                    <Form.Item label="角色名称" name="name">
-                        <Input placeholder="请输入角色名称" />
+            <br />
+            <Table rowKey="id" columns={columns} dataSource={roles} bordered pagination={{ pageSize: 20 }} />
+
+            <Modal title="新增角色" open={addOpen} onCancel={() => setAddOpen(false)} footer={null}>
+                <Form form={addForm} onFinish={submitRole} labelCol={{ span: 5 }} wrapperCol={{ span: 18 }}>
+                    <Form.Item label="角色名称" name="name" rules={[{ required: true }]}>
+                        <Input />
                     </Form.Item>
                     <Form.Item label="角色描述" name="description">
-                        <Input placeholder="请输入角色描述" />
+                        <Input />
                     </Form.Item>
-                    <Form.Item>
-                        <Button type='primary' htmlType='submit'>新增角色</Button>
+                    <Form.Item wrapperCol={{ offset: 5, span: 18 }}>
+                        <Button type="primary" htmlType="submit">保存</Button>
                     </Form.Item>
                 </Form>
             </Modal>
 
-
-            <Modal title="授权" open={authOpen} onCancel={() => {
-                setAuthOpen(false)
-                authForm.resetFields();
-            }} footer={null} >
-                <Form id='authForm' form={authForm} onFinish={() => { saveAuth() }} >
-
-                    <Tree
-                        checkable
-                        defaultExpandAll
-                        defaultCheckedKeys={ownedPermissionIds}
-                        onCheck={(checkedKeys, info) => {
-                            setCheckedIds(checkedKeys as number[]);
-                            setHalfCheckedIds(info.halfCheckedKeys as number[]);
-                        }}
-                        
-                        treeData={permissions}
-                    />
-                    <Form.Item labelCol={{ span: 4 }} wrapperCol={{ span: 8, offset: 16 }}>
-                        <Button type="primary" htmlType="submit">
-                            保存
-                        </Button>
-                        <Button onClick={() => {
-                            setAuthOpen(false)
-                        }}>取消</Button>
-                    </Form.Item>
-                </Form>
+            <Modal title={`角色授权 - ${operatingRole?.name || ''}`} open={authOpen}
+                onCancel={() => setAuthOpen(false)} onOk={saveAuth} okText="保存" width={640}>
+                <Tree checkable defaultExpandAll treeData={buildResourceTree(resources)}
+                    checkedKeys={checkedKeys}
+                    onCheck={(keys) => {
+                        const checked = Array.isArray(keys) ? keys : keys.checked;
+                        setCheckedKeys(checked as string[]);
+                    }} />
             </Modal>
         </div>
     );

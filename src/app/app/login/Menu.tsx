@@ -6,7 +6,7 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import { ItemType } from "antd/es/menu/interface";
 import {MenuInfo} from "rc-menu/lib/interface";
 interface MenuItem {
-    id: number;
+    id: string | number;
     name: string;
     key: string;
     label: string;

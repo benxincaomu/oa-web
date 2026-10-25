@@ -2,24 +2,31 @@
 import { useEffect } from "react";
 import service from "@/commons/base/service";
 import { Button, Card, Col, Form, Input, message, Row, Space, Typography } from "antd"
-import { useRouter } from 'next/navigation'; 
+import { useRouter } from 'next/navigation';
 
 const cardStyle = {
-
     backgroundColor: '#bbd4f1ff',
 };
 const formItemLayout = {
-    labelCol: { span: 4 },
-    wrapperCol: { span: 20 },
+    labelCol: { span: 6 },
+    wrapperCol: { span: 18 },
 };
+
+/**
+ * 首次初始化：配置 Keycloak，并在 Keycloak 中创建首个管理员与顶级组织。
+ * 本地不再保存任何权限/角色数据，基线菜单与接口由后端注册到 Keycloak。
+ */
 export default function Init() {
     const [messageApi, contextHolder] = message.useMessage();
     const router = useRouter();
+    const [deptForm] = Form.useForm();
+    const [userForm] = Form.useForm();
+    const [keycloakForm] = Form.useForm();
+
     useEffect(() => {
         document.title = "初始化";
         service.get("/initProject/isInitialized").then(res => {
             if (res.data) {
-                
                 messageApi.info("项目已初始化，无需重复执行");
                 setTimeout(() => {
                     router.push("/app");
@@ -27,10 +34,6 @@ export default function Init() {
             }
         })
     }, [messageApi, router]);
-    const [deptForm] = Form.useForm();
-    const [userForm] = Form.useForm();
-    const [roleForm] = Form.useForm();
-    const [keycloakForm] = Form.useForm();
 
     useEffect(() => {
         keycloakForm.setFieldsValue({
@@ -41,15 +44,12 @@ export default function Init() {
 
     const onCommit = async () => {
         try {
-            const [user, department, role, keycloak] = await Promise.all([
+            const [user, department, keycloak] = await Promise.all([
                 userForm.validateFields(),
                 deptForm.validateFields(),
-                roleForm.validateFields(),
                 keycloakForm.validateFields(),
             ]);
-            await service.post("/initProject", { user, department, role, keycloak });
-            keycloakForm.resetFields();
-            userForm.resetFields();
+            await service.post("/initProject", { user, department, keycloak });
             messageApi.success("初始化成功");
             setTimeout(() => router.push("/app"), 1000);
         } catch (error) {
@@ -57,7 +57,6 @@ export default function Init() {
                 messageApi.error("初始化失败，请检查 Keycloak 连接信息和管理客户端权限");
             }
         }
-
     };
 
     return (
@@ -106,44 +105,43 @@ export default function Init() {
                         </Form.Item>
                     </Form>
                 </Card>
-                <Card title="部门设置" style={cardStyle}>
+                <Card title="顶级组织（写入 Keycloak 组）" style={cardStyle}>
                     <Form form={deptForm} {...formItemLayout}>
-                        <Form.Item label="部门名称" name={"name"} required rules={[{required:true,message:'请输入部门名称'}]}>
+                        <Form.Item label="部门名称" name={"name"} rules={[{ required: true, message: '请输入部门名称' }]}>
                             <Input placeholder="请输入部门名称" />
+                        </Form.Item>
+                        <Form.Item label="部门编码" name={"code"}>
+                            <Input placeholder="可选" />
                         </Form.Item>
                     </Form>
                 </Card>
-                <Card title="用户设置" style={cardStyle}>
+                <Card title="管理员（写入 Keycloak 用户）" style={cardStyle}>
                     <Form form={userForm} {...formItemLayout}>
-                        <Form.Item label="姓名" name={"name"} rules={[{required:true,message:'请输入姓名'}]}>
+                        <Form.Item label="姓名" name={"name"} rules={[{ required: true, message: '请输入姓名' }]}>
                             <Input placeholder="请输入用户姓名" />
                         </Form.Item>
-                        <Form.Item label="登陆名" name={"userName"} rules={[{required:true,message:'请输入登录名'}]}>
+                        <Form.Item label="登陆名" name={"userName"} rules={[{ required: true, message: '请输入登录名' }]}>
                             <Input placeholder="请输入登陆名" />
                         </Form.Item>
-                        <Form.Item label="密码" name={"password"} rules={[{required:true,message:'请输入密码'}]}>
+                        <Form.Item label="密码" name={"password"} rules={[{ required: true, message: '请输入密码' }]}>
                             <Input.Password placeholder="请输入密码" />
                         </Form.Item>
                         <Form.Item label="确认密码" name={"confirmPassword"} required rules={[{
                             validator: (rule, value) => {
-                               if (value !== userForm.getFieldValue('password')) {
+                                if (value !== userForm.getFieldValue('password')) {
                                     return Promise.reject('密码不一致')
                                 } else {
                                     return Promise.resolve();
                                 }
                             }
-                        },{required:true,message:'请确认密码'}]}>
+                        }, { required: true, message: '请确认密码' }]}>
                             <Input.Password placeholder="请输入确认密码" />
                         </Form.Item>
-                        <Form.Item label="邮箱" name={"email"} rules={[{ type: "email", message: '请输入正确的邮箱' },{required:true,message:'请输入邮箱'}]} required>
+                        <Form.Item label="邮箱" name={"email"} rules={[{ type: "email", message: '请输入正确的邮箱' }, { required: true, message: '请输入邮箱' }]} required>
                             <Input placeholder="请输入邮箱" />
                         </Form.Item>
-                    </Form>
-                </Card>
-                <Card title="角色设置" style={cardStyle}>
-                    <Form form={roleForm} {...formItemLayout}>
-                        <Form.Item label="角色名称" name={"name"} rules={[{required:true,message:'请输入角色名称'}]}>
-                            <Input placeholder="请输入角色名称" />
+                        <Form.Item label="手机号" name={"mobile"}>
+                            <Input placeholder="可选" />
                         </Form.Item>
                     </Form>
                 </Card>

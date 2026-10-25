@@ -1,5 +1,5 @@
 "use client"
-import { Button, Divider, Form, Input, message, Modal, Space, Table, Typography } from "antd";
+import { Button, Divider, Form, Input, message, Modal, Popconfirm, Space, Table, Typography } from "antd";
 import service from "@/commons/base/service";
 import { useEffect, useState, useCallback } from "react";
 interface Workbench {
@@ -40,6 +40,12 @@ const Workbench = () => {
         });
     };
     const [workbenches, setWorkbenches] = useState<Workbench[]>([]);
+    const onDeleteWorkbench = (id: number) => {
+        service.delete(`/workbench/${id}`).then(() => {
+            messageApi.success("删除成功");
+            loadWorkbench(0, pageSize);
+        }).catch(() => messageApi.error("删除失败"));
+    };
     const columns = [
         {
             title: "名称",
@@ -54,7 +60,10 @@ const Workbench = () => {
             render: (text: any, record: any) => (
                 <Space size="middle">
                     <a>编辑</a>
-                    <a>删除</a>
+                    <Popconfirm title="确定删除该工作台？Keycloak 菜单/接口权限会被回收，已发布流程数据保留。"
+                        okText="确定" cancelText="取消" onConfirm={() => onDeleteWorkbench(record.id)}>
+                        <a>删除</a>
+                    </Popconfirm>
                     <a target="_blank" href={`/app/workbenches/design?wid=${record.id}`}>设计</a>
                 </Space>
             )

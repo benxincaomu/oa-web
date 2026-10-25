@@ -1,181 +1,181 @@
-
 "use client"
 import service from "@/commons/base/service";
-import { use, useCallback, useEffect, useState } from "react";
-import { Table, Form, Input, Button, Modal, Select, message, Space } from "antd";
-import formToUrlParams from "@/commons/base/urlSearchParam";
+import { Button, Form, Input, message, Modal, Space, Table, TreeSelect } from "antd";
+import { useCallback, useEffect, useState } from "react";
+
+interface KeycloakGroup {
+    id: string;
+    name: string;
+    code?: string;
+    parentId?: string;
+}
+
+interface KeycloakUser {
+    id: string;
+    username: string;
+    name?: string;
+}
+
+interface GroupTreeNode {
+    title: string;
+    value: string;
+    key: string;
+    children?: GroupTreeNode[];
+}
+
+interface GroupNode extends KeycloakGroup {
+    children?: GroupNode[];
+}
+
+const buildTree = (groups: KeycloakGroup[]): GroupNode[] => {
+    const nodes = new Map<string, GroupNode>();
+    groups.forEach(group => nodes.set(group.id, { ...group }));
+    const roots: GroupNode[] = [];
+    groups.forEach(group => {
+        const node = nodes.get(group.id) as GroupNode;
+        const parent = group.parentId ? nodes.get(group.parentId) : undefined;
+        if (parent) {
+            parent.children = parent.children || [];
+            parent.children.push(node);
+        } else {
+            roots.push(node);
+        }
+    });
+    return roots;
+};
+
+const buildTreeSelect = (groups: KeycloakGroup[]): GroupTreeNode[] =>
+    buildTree(groups).map(function toNode(group: GroupNode): GroupTreeNode {
+        return {
+            title: group.name,
+            value: group.id,
+            key: group.id,
+            children: group.children ? group.children.map(toNode) : undefined,
+        };
+    });
+
+/**
+ * 组织管理：Keycloak 组即 OA 部门，读写全部经过 /identity 接口。
+ */
 const Organize = () => {
     const [messageApi, contextHolder] = message.useMessage();
-
-
-
-
-
-    const saveDept = (values: any) => {
-        service.post("/organize", { ...values }).then((res) => {
-            messageApi.info(res.data);
-        });
-    };
-
-    const [addModalVisible, setAddModalVisible] = useState(false);
-    const [allDepts, setAllDepts] = useState<any[]>([]);
-
+    const [groups, setGroups] = useState<KeycloakGroup[]>([]);
+    const [users, setUsers] = useState<KeycloakUser[]>([]);
+    const [addOpen, setAddOpen] = useState(false);
+    const [leaderOpen, setLeaderOpen] = useState(false);
+    const [operatingGroup, setOperatingGroup] = useState<KeycloakGroup | null>(null);
     const [addForm] = Form.useForm();
-    const loadAllOrganizes = () => {
-        if (allDepts.length == 0) {
-            service.get("/organize/listAll").then((res) => {
-                setAllDepts(res.data as any[]);
+    const [leaderForm] = Form.useForm();
 
-                addForm.resetFields();
-            });
-        }
-    };
-    const [deptManagerOpen, setDeptManagerOpen] = useState(false);
-    const [deptUsers, setDeptUsers] = useState<any[]>([]);
-    const [assignLeaderForm] = Form.useForm();
-    const onAssignLeaderOpen = (record: any) => {
-        service.get(`/organize/getUsersByDeptId/${record.id}`).then((res) => {
-            setDeptUsers(res.data);
-            assignLeaderForm.setFieldValue("deptId", record.id);
-            assignLeaderForm.setFieldValue("leaderUserId", record.leaderUserId);
-            setDeptManagerOpen(true);
-        });
-    };
-    const assignDeptLeader = (values: any) => {
-        // console.log("values", values);
-        service.post("/organize/assignLeader", values).then((res: any) => {
-            if (res.code === 200) {
-                messageApi.success("保存成功");
-                setDeptManagerOpen(false);
-            } else {
-                messageApi.error(res.data);
-            }
-        });
-    };
-    const columns = [
-        {
-            title: '名称',
-            dataIndex: 'name',
-            key: 'name',
-        },
-        {
-            title: '描述',
-            dataIndex: 'description',
-            key: 'description',
-        },
-        {
-            title: '组织代码',
-            dataIndex: 'code',
-            key: 'code',
-        },
-        {
-            title: '操作',
-            key: 'action',
-            render: (value: any, record: any, index: number) => (
-                <Space size="middle">
-                    {/* <a>编辑</a>
-                    <a>删除</a> */}
-                    <a onClick={() => {
-                        onAssignLeaderOpen(record);
-                    }}>设置负责人</a>
-                </Space>
-            )
-        }
-    ];
-    const [depts, setDepts] = useState<any[]>([]);
-    const [pageSize, setPageSize] = useState(20);
-    const [total, setTotal] = useState(0);
+    const loadGroups = useCallback(() => {
+        service.get<KeycloakGroup[]>("/identity/groups")
+            .then((res) => setGroups(res.data || []))
+            .catch(() => messageApi.error("加载组织失败"));
+    }, [messageApi]);
 
-    const [searchFrom] = Form.useForm();
-    const loadOrganizes = useCallback((currPage: number, pageSize: number) => {
-
-        service.get(`/organize/list?currPage=${currPage}&pageSize=${pageSize}&${formToUrlParams(searchFrom.getFieldsValue())}`).then((res) => {
-            setDepts(res.data.content);
-            setTotal(res.data.page.totalElements);
-
-        });
-    }, [searchFrom]);
     useEffect(() => {
         document.title = "组织管理";
-        setTimeout(() => {
-            loadOrganizes(0, pageSize);
-        }, 500);
-    }, [loadOrganizes, pageSize]);
+        loadGroups();
+    }, [loadGroups]);
 
+    const submitGroup = (values: any) => {
+        service.put("/identity/groups", {
+            name: values.name,
+            code: values.code || undefined,
+            parentId: values.parentId || undefined,
+        }).then(() => {
+            messageApi.success("保存成功");
+            setAddOpen(false);
+            addForm.resetFields();
+            loadGroups();
+        }).catch(() => messageApi.error("保存失败"));
+    };
+
+    const openLeader = (group: KeycloakGroup) => {
+        setOperatingGroup(group);
+        leaderForm.resetFields();
+        service.get<KeycloakUser[]>("/identity/users")
+            .then((res) => setUsers(res.data || []))
+            .catch(() => messageApi.error("加载用户失败"));
+        setLeaderOpen(true);
+    };
+
+    const submitLeader = (values: any) => {
+        if (!operatingGroup) {
+            return;
+        }
+        service.put(`/identity/groups/${operatingGroup.id}/leader`, { userId: values.userId })
+            .then(() => {
+                messageApi.success("负责人已保存");
+                setLeaderOpen(false);
+            })
+            .catch(() => messageApi.error("保存负责人失败"));
+    };
+
+    const columns = [
+        { title: "名称", dataIndex: "name", key: "name" },
+        { title: "编码", dataIndex: "code", key: "code" },
+        {
+            title: "操作",
+            key: "action",
+            render: (_: any, record: KeycloakGroup) => (
+                <Space size="middle">
+                    <a onClick={() => openLeader(record)}>设置负责人</a>
+                </Space>
+            ),
+        },
+    ];
 
     return (
         <div>
             {contextHolder}
-            <div>
-
-                <Form layout="inline" onFinish={(values) => loadOrganizes(0, pageSize)} form={searchFrom}>
-                    <Form.Item name={"name"} label="部门名称">
-                        <Input />
-                    </Form.Item>
-                    <Form.Item name={"code"} label="部门编号">
-                        <Input />
-                    </Form.Item>
-                    <Form.Item>
-                        <Button type="primary">查询</Button>
-                    </Form.Item>
-                    <Form.Item>
-                        <Button type="primary" onClick={() => {
-                            loadAllOrganizes();
-                            setAddModalVisible(true);
-                        }}>新增部门</Button>
-                    </Form.Item>
-
-                </Form>
-            </div>
+            <Form layout="inline">
+                <Form.Item>
+                    <Button type="primary" onClick={() => {
+                        addForm.resetFields();
+                        setAddOpen(true);
+                    }}>新增部门</Button>
+                </Form.Item>
+            </Form>
             <br />
-            <Table columns={columns} dataSource={depts} rowKey={(record) => record.id} pagination={{
-                defaultCurrent: 1, pageSize: pageSize, total: total, onChange(page, pageSize) {
-                    setPageSize(pageSize);
-                    loadOrganizes(page, pageSize);
-                },
-            }} />
+            <Table rowKey={(record) => record.id} columns={columns} dataSource={buildTree(groups)}
+                pagination={false} bordered />
 
-            <Modal
-                title="新增部门"
-                open={addModalVisible}
-
-                onCancel={() => {
-                    setAddModalVisible(false);
-                    addForm.resetFields();
-                }}
-                footer={null}
-            >
-                <Form layout='horizontal' labelCol={{ span: 6 }} wrapperCol={{ span: 16 }} onFinish={values => saveDept(values)} form={addForm}>
-                    <Form.Item label="部门名称" name={"name"}>
+            <Modal title="新增部门" open={addOpen} onCancel={() => setAddOpen(false)} footer={null}>
+                <Form form={addForm} onFinish={submitGroup} labelCol={{ span: 5 }} wrapperCol={{ span: 18 }}>
+                    <Form.Item label="部门名称" name="name" rules={[{ required: true }]}>
                         <Input />
                     </Form.Item>
-                    <Form.Item label="部门描述" name={"description"}>
+                    <Form.Item label="部门编码" name="code">
                         <Input />
                     </Form.Item>
-                    <Form.Item label="上级部门" name={"parentId"}>
-                        <Select options={allDepts} fieldNames={{ label: 'name', value: 'id' }} showSearch optionFilterProp="name" />
+                    <Form.Item label="上级组织" name="parentId">
+                        <TreeSelect allowClear treeData={buildTreeSelect(groups)} placeholder="默认挂在租户根组下"
+                            fieldNames={{ label: "title", value: "value" }} />
                     </Form.Item>
-                    <Form.Item labelCol={{ span: 4 }} wrapperCol={{ span: 8, offset: 16 }}>
-                        <Button type='primary' htmlType='submit'>保存</Button>
-                        <Button style={{ marginLeft: 8 }} onClick={() => setAddModalVisible(false)}>取消</Button>
+                    <Form.Item wrapperCol={{ offset: 5, span: 18 }}>
+                        <Button type="primary" htmlType="submit">保存</Button>
                     </Form.Item>
                 </Form>
             </Modal>
-            <Modal title='部门负责人' open={deptManagerOpen} footer={null} onCancel={() => { setDeptManagerOpen(false) }}>
-                <Form form={assignLeaderForm} onFinish={(values) => assignDeptLeader(values)}>
-                    <Form.Item name="deptId" hidden>
-                        <Input />
+
+            <Modal title={`设置负责人 - ${operatingGroup?.name || ""}`} open={leaderOpen}
+                onCancel={() => setLeaderOpen(false)} footer={null}>
+                <Form form={leaderForm} onFinish={submitLeader} labelCol={{ span: 5 }} wrapperCol={{ span: 18 }}>
+                    <Form.Item label="负责人" name="userId" rules={[{ required: true }]}>
+                        <TreeSelect treeData={users.map(user => ({
+                            title: user.name || user.username,
+                            value: user.id,
+                            key: user.id,
+                        }))} placeholder="请选择负责人" fieldNames={{ label: "title", value: "value" }} />
                     </Form.Item>
-                    <Form.Item label="选择管理人" name={"leaderUserId"}>
-                        <Select options={deptUsers} fieldNames={{ label: 'name', value: 'id' }} />
-                    </Form.Item>
-                    <Form.Item labelCol={{ span: 4 }} wrapperCol={{ span: 8, offset: 16 }}>
-                        <Button type='primary' htmlType='submit'>保存</Button>
-                        <Button style={{ marginLeft: 8 }} onClick={() => setDeptManagerOpen(false)}>取消</Button>
+                    <Form.Item wrapperCol={{ offset: 5, span: 18 }}>
+                        <Button type="primary" htmlType="submit">保存</Button>
                     </Form.Item>
                 </Form>
             </Modal>
         </div>
     );
 };
+
 export default Organize;

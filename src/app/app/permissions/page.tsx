@@ -1,214 +1,65 @@
 "use client"
 
-import { Form, Input, Button, Select, Space, Table, Modal, message } from 'antd';
-import { useState, useEffect } from 'react';
-import dynamic from 'next/dynamic';
+import { Table } from 'antd';
+import { useEffect, useState } from 'react';
 import service from '@/commons/base/service';
-import { title } from 'process';
-interface Permission {
-    id: number;
-    name: string;
-    parentId: number;
-    type: number;
-    description: string;
-    value: string;
 
+interface OaResource {
+    id: string;
+    key: string;
+    displayName: string;
+    type: string;
+    value?: string;
+    parentKey?: string;
+    workbenchKey?: string;
 }
 
+const typeLabel = (type: string) => {
+    if (type === 'oa-menu') {
+        return '菜单资源';
+    }
+    if (type === 'oa-api') {
+        return '接口资源';
+    }
+    return type;
+};
 
+/**
+ * 权限管理：展示 Keycloak Authorization Services 中的资源。
+ * 权限的创建（工作台发布）与授权（角色页）都由 Keycloak 承担，这里只读。
+ */
 const Permissions = () => {
-    const [messageApi, contextHolder] = message.useMessage();
-    const [searchForm] = Form.useForm();
-    const typeMap = new Map<number, string>();
-    typeMap.set(1, '目录菜单');
-    typeMap.set(2, '页面菜单');
-    typeMap.set(3, '请求链接');
-    typeMap.set(4, '页面控制');
-    const [pageSize, setPageSize] = useState(20);
+    const [resources, setResources] = useState<OaResource[]>([]);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        document.title = "权限管理";
+        setLoading(true);
+        service.get<OaResource[]>("/identity/resources")
+            .then((res) => setResources(res.data || []))
+            .finally(() => setLoading(false));
+    }, []);
+
     const columns = [
-        {
-            title: '权限名称',
-            dataIndex: 'name',
-            key: 'name',
-        },
+        { title: '权限名称', dataIndex: 'displayName', key: 'displayName' },
         {
             title: '权限类型',
             dataIndex: 'type',
             key: 'type',
-            render: (_: any, record: any) => {
-                return <Space size="middle">{typeMap.get(record.type)}</Space>;
-            },
+            render: (_: any, record: OaResource) => typeLabel(record.type),
         },
-        /* {
-            title: '权限描述',
-            dataIndex: 'description',
-            key: 'description',
-        }, */
-        {
-            title: "权限值",
-            dataIndex: 'value',
-            key: 'value',
-        },
-        {
-            title: '上级权限',
-            dataIndex: 'parentName',
-            key: 'parentName',
-        },
-        /* {
-            title: '操作',
-            dataIndex: 'id',
-            render: (_: any, record: any) => (
-                <Space size="middle">
-                    <a onClick={() => {
-                        // console.log("编辑:", record.id)
-                    }}>编辑</a>
-                </Space>
-            )
-        } */
+        { title: '资源标识', dataIndex: 'key', key: 'key' },
+        { title: '路由 / URL', dataIndex: 'value', key: 'value' },
+        { title: '上级资源', dataIndex: 'parentKey', key: 'parentKey' },
+        { title: '所属工作台', dataIndex: 'workbenchKey', key: 'workbenchKey' },
     ];
-    const [permissions, setPermissions] = useState<Permission[]>([]);
-    const [total, setTotal] = useState(0);
-    const loadPermissions = async (currPage: number, pageSize: number) => {
-        await service.get("/permission/list", {
-            headers: {
-            },
-        }).then((res) => {
-            // console.log("获取权限数据成功:", res.data);
-            setPermissions(res.data.content);
-            setTotal(res.data.page.totalElements);
-        });
-    };
-
-    useEffect(() => {
-        setTimeout(() => {
-            loadPermissions(0, pageSize);
-        }, 300);
-    }, []);
-
-    // 添加权限相关
-    const [addOpen, setAddOpen] = useState(false);
-    const [addForm] = Form.useForm();
-    const handleAddPermission = (values: any) => {
-        setAddOpen(true);
-
-        service.post("/permission", values, {
-            headers: {
-                "Content-Type": "application/json",
-
-            },
-        }).then((res) => {
-            messageApi.info(res.data);
-            loadPermissions(0, pageSize);
-            setAddOpen(false);
-            addForm.resetFields();
-        });
-    };
-    const [parentPermissions, setParentPermissions] = useState<Permission[]>([]);
-    const getParentPermissions = (type: number) => {
-        let typeTmp = 0;
-        switch (type) {
-            case 1:
-                typeTmp = 1;
-                break;
-            case 2:
-                typeTmp = 1;
-                break;
-            case 3:
-                typeTmp = 2;
-                break;
-            default:
-                typeTmp = 0;
-                break;
-        }
-        service
-            .get(`/permission/permissionsByType?type=${typeTmp}`, {
-
-            })
-            .then((response) => {
-                setParentPermissions(response.data);
-            });
-    };
 
     return (
         <div>
-            {contextHolder}
-            <head>
-                <title>权限管理</title>
-            </head>
-            <div>
-
-                <Form form={searchForm} layout="inline" onFinish={(values) => loadPermissions(0, 0)}>
-                    <Form.Item label="权限名称" name="name">
-                        <Input placeholder="请输入权限名称" />
-                    </Form.Item>
-                    <Form.Item label="权限类型" name="type" >
-                        <Select placeholder="请选择权限类型">
-                            <Select.Option value={1}>目录菜单</Select.Option>
-                            <Select.Option value={2}>页面菜单</Select.Option>
-                            <Select.Option value={3}>请求链接</Select.Option>
-                            <Select.Option value={4}>页面控制</Select.Option>
-                        </Select>
-                    </Form.Item>
-
-                    <Form.Item>
-
-                        <Button type='primary' htmlType='submit'>查询</Button>
-                    </Form.Item>
-                    {/* <Form.Item>
-                        <Button type='primary' onClick={() => {
-                            setAddOpen(true);
-                        }}>添加权限</Button>
-                    </Form.Item> */}
-                </Form>
-            </div>
-            <br />
-
-            <Table columns={columns} dataSource={permissions} rowKey={(record) => record.id} bordered={true} pagination={{
-                defaultCurrent: 1, pageSize: pageSize, total: total, onChange(page, pageSize) {
-                    setPageSize(pageSize);
-                    loadPermissions(page, pageSize);
-                },
-            }} />
-            <Modal title="添加权限" open={addOpen} onCancel={() => {
-                setAddOpen(false);
-                addForm.resetFields();
-            }} footer={null} >
-                <Form form={addForm} onFinish={values => handleAddPermission(values)} layout='horizontal' labelCol={{ span: 6 }} wrapperCol={{ span: 16 }} >
-                    <Form.Item label="权限名称" name="name" rules={[{ required: true }]}>
-                        <Input placeholder="请输入权限名称" />
-                    </Form.Item>
-                    <Form.Item label="权限描述" name="description" >
-                        <Input placeholder="请输入权限描述" />
-                    </Form.Item>
-                    <Form.Item label="权限类型" name="type" rules={[{ required: true }]}>
-                        <Select placeholder="请选择权限类型" onChange={(value) => getParentPermissions(value)}>
-                            <Select.Option value={1}>目录菜单</Select.Option>
-                            <Select.Option value={2}>页面菜单</Select.Option>
-                            <Select.Option value={3}>请求链接</Select.Option>
-                            <Select.Option value={4}>页面控制</Select.Option>
-                        </Select>
-                    </Form.Item>
-                    <Form.Item
-                        label="权限值"
-                        name="value"
-                        rules={[{ required: true }]}
-                    >
-                        <Input />
-                    </Form.Item>
-                    <Form.Item label="上级权限" name="parentId" >
-                        <Select placeholder="请选择上级权限" fieldNames={{ label: 'name', value: 'id' }} options={parentPermissions} showSearch
-                            optionFilterProp="name"
-                        />
-
-                    </Form.Item>
-                    <Form.Item labelCol={{ span: 4 }} wrapperCol={{ span: 8, offset: 16 }}>
-                        <Button type='primary' htmlType='submit'>保存</Button>
-                        <Button style={{ marginLeft: 8 }} onClick={() => setAddOpen(false)}>取消</Button>
-                    </Form.Item>
-
-                </Form>
-            </Modal>
+            <Table rowKey={(record) => record.key} columns={columns} dataSource={resources}
+                loading={loading} bordered pagination={{ pageSize: 50 }} />
         </div>
-    )
-}
+    );
+};
+
 export default Permissions;
