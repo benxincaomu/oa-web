@@ -30,6 +30,13 @@ const service = axios.create({
     },
 }) as CustomAxiosInstance & typeof axios;
 
+// 登录态失效时统一跳转 Keycloak 授权入口
+const redirectToLogin = () => {
+    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/init')) {
+        window.location.assign('/server/oauth2/authorization/keycloak');
+    }
+};
+
 // 请求拦截器
 service.interceptors.request.use(
     (config) => config,
@@ -41,6 +48,13 @@ service.interceptors.request.use(
 // 响应拦截器
 service.interceptors.response.use(
     (response) => {
+        // Spring Security 在会话失效时会把 XHR 302 到 Keycloak 登录页，
+        // axios 会跟随重定向拿到 HTML；此时直接走重新登录，避免页面报“网络请求失败”。
+        const contentType = response.headers?.['content-type'];
+        if (typeof contentType === 'string' && contentType.includes('text/html')) {
+            redirectToLogin();
+            return new Promise(() => {});
+        }
         const res = response.data;
         if (!res || typeof res.code !== 'number') {
             return res;
@@ -61,9 +75,12 @@ service.interceptors.response.use(
     },
     (error) => {
         const status = error?.response?.status;
-        if (status === 403) {
+        if (status === 401) {
+            redirectToLogin();
+            return new Promise(() => {});
+        } else if (status === 403) {
             message.error('当前账号没有执行此操作的权限');
-        } else if (status !== 401) {
+        } else {
             message.error('网络请求失败');
         }
         return Promise.reject(error);

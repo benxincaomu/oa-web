@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Form, Input, message, Modal, Popconfirm, Select, Space, Switch, Table, TreeSelect } from "antd";
+import { Button, Form, Input, message, Modal, Select, Space, Switch, Table, TreeSelect } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import service from "@/commons/base/service";
 
@@ -233,10 +233,6 @@ const UserManager = () => {
                     <a onClick={() => openPassword(record)}>重置密码</a>
                     <a onClick={() => openRoles(record)}>分配角色</a>
                     <a onClick={() => openGroups(record)}>分配组织</a>
-                    <Popconfirm title={record.enabled ? "确定停用该用户？" : "确定启用该用户？"}
-                        okText="确定" cancelText="取消" onConfirm={() => toggleEnabled(record)}>
-                        <a>{record.enabled ? "停用" : "启用"}</a>
-                    </Popconfirm>
                 </Space>
             ),
         },

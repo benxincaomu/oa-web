@@ -119,7 +119,9 @@ const RoleManager = () => {
                     <Space size="middle">
                         {isAdmin
                             ? <Tooltip title="管理员角色的默认授权由系统维护">
-                                <Button type="primary" disabled>授权</Button>
+                                <span>
+                                    <Button type="primary" disabled>授权</Button>
+                                </span>
                             </Tooltip>
                             : <Button type="primary" onClick={() => openAuth(record)}>授权</Button>}
                     </Space>
