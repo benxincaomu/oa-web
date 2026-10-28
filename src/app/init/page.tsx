@@ -1,7 +1,7 @@
 "use client"
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import service from "@/commons/base/service";
-import { Button, Card, Col, Form, Input, message, Row, Space, Typography } from "antd"
+import { Alert, Button, Card, Col, Form, Input, message, Row, Space, Typography } from "antd"
 import { useRouter } from 'next/navigation';
 
 const cardStyle = {
@@ -12,9 +12,12 @@ const formItemLayout = {
     wrapperCol: { span: 18 },
 };
 
+type InitMode = "loading" | "fresh" | "existing" | "done";
+
 /**
- * 首次初始化：配置 Keycloak，并在 Keycloak 中创建首个管理员与顶级组织。
- * 本地不再保存任何权限/角色数据，基线菜单与接口由后端注册到 Keycloak。
+ * 初始化页面，支持两种模式：
+ * - fresh：全新安装，创建租户、顶级部门、管理员并配置 Keycloak；
+ * - existing：数据库已有租户但缺少 Keycloak 配置，只补充 Keycloak 设置并复用现有数字 ID。
  */
 export default function Init() {
     const [messageApi, contextHolder] = message.useMessage();
@@ -22,17 +25,24 @@ export default function Init() {
     const [deptForm] = Form.useForm();
     const [userForm] = Form.useForm();
     const [keycloakForm] = Form.useForm();
+    const [mode, setMode] = useState<InitMode>("loading");
 
     useEffect(() => {
         document.title = "初始化";
-        service.get("/initProject/isInitialized").then(res => {
-            if (res.data) {
+        Promise.all([
+            service.get<boolean>("/initProject/isInitialized"),
+            service.get<{ configured: boolean }>("/initProject/keycloakStatus"),
+        ]).then(([initializedResponse, keycloakStatusResponse]) => {
+            const initialized = !!initializedResponse.data;
+            const keycloakConfigured = !!keycloakStatusResponse.data?.configured;
+            if (initialized && keycloakConfigured) {
+                setMode("done");
                 messageApi.info("项目已初始化，无需重复执行");
-                setTimeout(() => {
-                    router.push("/app");
-                }, 2000);
+                setTimeout(() => router.push("/app"), 2000);
+                return;
             }
-        })
+            setMode(initialized ? "existing" : "fresh");
+        }).catch(() => setMode("fresh"));
     }, [messageApi, router]);
 
     useEffect(() => {
@@ -44,12 +54,16 @@ export default function Init() {
 
     const onCommit = async () => {
         try {
-            const [user, department, keycloak] = await Promise.all([
+            const [user, keycloak] = await Promise.all([
                 userForm.validateFields(),
-                deptForm.validateFields(),
                 keycloakForm.validateFields(),
             ]);
-            await service.post("/initProject", { user, department, keycloak });
+            if (mode === "existing") {
+                await service.post("/initProject", { user, keycloak });
+            } else {
+                const department = await deptForm.validateFields();
+                await service.post("/initProject", { user, department, keycloak });
+            }
             messageApi.success("初始化成功");
             setTimeout(() => router.push("/app"), 1000);
         } catch (error) {
@@ -58,6 +72,26 @@ export default function Init() {
             }
         }
     };
+
+    if (mode === "loading") {
+        return (
+            <div style={{ padding: 40 }}>
+                {contextHolder}
+                <Typography.Text>正在检查初始化状态...</Typography.Text>
+            </div>
+        );
+    }
+
+    if (mode === "done") {
+        return (
+            <div style={{ padding: 40 }}>
+                {contextHolder}
+                <Typography.Title level={3}>项目已初始化，正在跳转...</Typography.Title>
+            </div>
+        );
+    }
+
+    const existingInstallation = mode === "existing";
 
     return (
         <div style={{ position: 'relative', height: '100vh' }}>
@@ -72,8 +106,17 @@ export default function Init() {
                 transform: 'translate(-50%, 0)'
             }}>
                 <Typography.Title level={3}>
-                    初始化项目
+                    {existingInstallation ? "补充 Keycloak 配置" : "初始化项目"}
                 </Typography.Title>
+                {existingInstallation && (
+                    <Alert
+                        type="warning"
+                        showIcon
+                        style={{ marginBottom: 16 }}
+                        message="检测到已有业务数据，但尚未配置 Keycloak"
+                        description="本次只补充 Keycloak 配置，并绑定现有租户、根部门和管理员数字 ID；不会创建新租户，也不会修改现有部门与工作流数据。管理员密码仅在新创建 Keycloak 用户时生效。"
+                    />
+                )}
                 <Card title="Keycloak / OAuth2 / IAM 接入" style={cardStyle}>
                     <Form form={keycloakForm} {...formItemLayout}>
                         <Form.Item label="Issuer URI" name="issuerUri" required rules={[{ required: true, message: "请输入 Keycloak Realm 的 issuer URI" }]}>
@@ -105,17 +148,19 @@ export default function Init() {
                         </Form.Item>
                     </Form>
                 </Card>
-                <Card title="顶级组织（写入 Keycloak 组）" style={cardStyle}>
-                    <Form form={deptForm} {...formItemLayout}>
-                        <Form.Item label="部门名称" name={"name"} rules={[{ required: true, message: '请输入部门名称' }]}>
-                            <Input placeholder="请输入部门名称" />
-                        </Form.Item>
-                        <Form.Item label="部门编码" name={"code"}>
-                            <Input placeholder="可选" />
-                        </Form.Item>
-                    </Form>
-                </Card>
-                <Card title="管理员（写入 Keycloak 用户）" style={cardStyle}>
+                {!existingInstallation && (
+                    <Card title="顶级组织（写入 Keycloak 组）" style={cardStyle}>
+                        <Form form={deptForm} {...formItemLayout}>
+                            <Form.Item label="部门名称" name={"name"} rules={[{ required: true, message: '请输入部门名称' }]}>
+                                <Input placeholder="请输入部门名称" />
+                            </Form.Item>
+                            <Form.Item label="部门编码" name={"code"}>
+                                <Input placeholder="可选" />
+                            </Form.Item>
+                        </Form>
+                    </Card>
+                )}
+                <Card title={existingInstallation ? "管理员（绑定 Keycloak 用户）" : "管理员（写入 Keycloak 用户）"} style={cardStyle}>
                     <Form form={userForm} {...formItemLayout}>
                         <Form.Item label="姓名" name={"name"} rules={[{ required: true, message: '请输入姓名' }]}>
                             <Input placeholder="请输入用户姓名" />
