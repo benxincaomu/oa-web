@@ -32,7 +32,7 @@ const service = axios.create({
 
 // 登录态失效时统一跳转 Keycloak 授权入口
 const redirectToLogin = () => {
-    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/init')) {
+    if (typeof window !== 'undefined') {
         window.location.assign('/server/oauth2/authorization/keycloak');
     }
 };
@@ -61,12 +61,10 @@ service.interceptors.response.use(
         }
         if (res.code === 10002) {
             message.error(res.message);
-        } else if (res.code === -1 && window.location.pathname !== '/init') {
-            message.error(res.message || '项目未初始化');
-            setTimeout(() => {
-                window.location.href='/init';
-            }, 3000);
-            return new Promise(() => {});
+        } else if (res.code === -1) {
+            // 后端启动时自动初始化 Keycloak 角色/权限，暂无初始化页面可跳转
+            message.error(res.message || '系统正在初始化，请稍后刷新页面');
+            return Promise.reject(new Error(res.message || '系统正在初始化'));
         } else if (res.code !== 200) {
             message.error(res.message || '操作失败');
             return Promise.reject(new Error(res.message || '操作失败'));
